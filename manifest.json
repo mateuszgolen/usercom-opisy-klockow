@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Positive User — opisy klocków",
+  "version": "1.2.0",
+  "description": "Edytor opisów bloków na kanwie automatyzacji user.com / Positive User.",
+  "permissions": ["scripting"],
+  "host_permissions": ["https://*.user.com/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Opisy klocków — otwórz panel",
+    "default_icon": { "16": "icon16.png", "32": "icon32.png", "48": "icon48.png", "128": "icon128.png" }
+  },
+  "icons": { "16": "icon16.png", "32": "icon32.png", "48": "icon48.png", "128": "icon128.png" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.user.com/v3/*"],
+      "css": ["panel.css"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://*.user.com/v3/*"],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "world": "MAIN"
+    }
+  ]
+}

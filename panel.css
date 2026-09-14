@@ -1,0 +1,150 @@
+/* Positive User — opisy klocków */
+
+.ucd-launcher {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  font: 600 12px/1 "Inter", system-ui, sans-serif;
+  letter-spacing: .02em;
+  color: #0d1117;
+  background: #7cd4dd;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+}
+.ucd-launcher:hover { background: #96e0e8; }
+.ucd-launcher.ucd-active { background: #4a9aa2; color: #fff; }
+/* poza widokiem automatyzacji nie ma czego edytować — chowamy przycisk */
+.ucd-launcher.ucd-off { display: none; }
+.ucd-launcher svg { display: block; flex: none; }
+
+.ucd-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 62px;
+  z-index: 2147483000;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  background: #12181f;
+  color: #e6ecf1;
+  border: 1px solid #2b3a46;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+  font: 13px/1.5 "Inter", system-ui, sans-serif;
+}
+.ucd-panel.ucd-hidden { display: none; }
+
+.ucd-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #24313c;
+}
+.ucd-titles { flex: 1; min-width: 0; }
+.ucd-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.ucd-sub { font-size: 11px; color: #8494a1; margin-top: 2px; }
+.ucd-x {
+  background: none; border: 0; color: #8494a1;
+  font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px;
+}
+.ucd-x:hover { color: #e6ecf1; }
+
+.ucd-warnbar {
+  margin: 0;
+  padding: 9px 16px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #e0ac5c;
+  background: #2a2214;
+  border-bottom: 1px solid #24313c;
+}
+
+.ucd-list { overflow-y: auto; padding: 6px 0; flex: 1; min-height: 64px; }
+
+.ucd-empty { padding: 18px 16px; color: #8494a1; font-size: 12px; }
+
+.ucd-row { padding: 9px 16px; border-bottom: 1px solid #1c2630; }
+.ucd-row:last-child { border-bottom: 0; }
+.ucd-row.ucd-changed { background: #15241f; box-shadow: inset 3px 0 0 #78c295; }
+
+.ucd-rowhead { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.ucd-idx {
+  font: 500 10px/1 ui-monospace, monospace;
+  color: #6f7f8c; min-width: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.ucd-type { font-weight: 600; font-size: 12px; color: #b9c6d1; flex: 1; }
+
+.ucd-show {
+  background: #1e2c36; border: 1px solid #2f414f; color: #9fb2c0;
+  font: 500 10.5px/1 "Inter", system-ui, sans-serif;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+}
+.ucd-show:hover { background: #2a3b47; color: #e6ecf1; }
+
+.ucd-chip {
+  font: 600 9.5px/1 "Inter", system-ui, sans-serif;
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 3px 6px; border-radius: 3px; white-space: nowrap;
+}
+.ucd-chip-warn { color: #e0ac5c; background: #332816; }
+.ucd-chip-mute { color: #7a8895; background: #1e2831; }
+
+.ucd-ta {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0d141a;
+  color: #e6ecf1;
+  border: 1px solid #2b3a46;
+  border-radius: 4px;
+  padding: 7px 9px;
+  font: 12px/1.45 ui-monospace, "SF Mono", monospace;
+  resize: vertical;
+  min-height: 42px;
+}
+.ucd-ta:focus { outline: 2px solid #4a9aa2; outline-offset: -1px; border-color: #4a9aa2; }
+.ucd-ta:disabled { color: #6f7f8c; background: #131a21; cursor: not-allowed; }
+
+.ucd-note { margin: 5px 0 0; font-size: 11px; line-height: 1.45; color: #8494a1; }
+
+.ucd-foot {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  padding: 12px 16px; border-top: 1px solid #24313c;
+}
+.ucd-btn {
+  background: #1e2c36; border: 1px solid #2f414f; color: #c3d0da;
+  font: 500 11.5px/1 "Inter", system-ui, sans-serif;
+  padding: 8px 11px; border-radius: 5px; cursor: pointer;
+}
+.ucd-btn:hover:not(:disabled) { background: #2a3b47; color: #fff; }
+.ucd-btn-primary { background: #7cd4dd; border-color: #7cd4dd; color: #0d1117; font-weight: 600; }
+.ucd-btn-primary:hover:not(:disabled) { background: #96e0e8; color: #0d1117; }
+.ucd-btn:disabled { opacity: .45; cursor: default; }
+
+.ucd-status {
+  padding: 0 16px 12px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #8494a1;
+  min-height: 0;
+}
+.ucd-status:empty { padding-bottom: 0; }
+.ucd-status.ucd-ok { color: #78c295; }
+.ucd-status.ucd-warn { color: #e0ac5c; }
+.ucd-status.ucd-err { color: #e8897c; }
+
+/* podświetlenie bloku na kanwie */
+.ucd-hi .rect-body-main {
+  stroke: #7cd4dd !important;
+  stroke-width: 3 !important;
+}
