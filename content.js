@@ -59,7 +59,7 @@
     features_html: 'Własny opis (notatka)'
   };
 
-  const state = { id: null, name: '', graph: null, cells: null, mods: [], dirty: new Set() };
+  const state = { id: null, name: '', graph: null, original: null, cells: null, mods: [], dirty: new Set() };
 
   /* ---------------- graf ---------------- */
 
@@ -117,6 +117,7 @@
         id: id,
         name: j.name || ('#' + id),
         graph: graph,
+        original: JSON.stringify(graph),   // odcisk stanu z chwili wczytania
         cells: graph.cells,
         mods: graph.cells
           .filter((c) => c.type !== 'link')
@@ -133,6 +134,7 @@
     state.id = data.id;
     state.name = data.name;
     state.graph = data.graph;
+    state.original = data.original;
     state.cells = data.cells;
     state.mods = data.mods;
     state.dirty.clear();
@@ -166,6 +168,17 @@
       return !!back && readDesc(back) === expected;
     };
 
+    // Zapisujemy CAŁY graf, więc gdyby ktoś zmienił tę automatyzację od czasu
+    // wczytania, jego zmiana zniknęłaby bez śladu. Sprawdzamy to przed zapisem.
+    const fresh = await (await fetch(url, { credentials: 'include' })).json();
+    const freshGraph = typeof fresh.graph === 'string' ? JSON.parse(fresh.graph) : fresh.graph;
+    if (state.original && JSON.stringify(freshGraph) !== state.original) {
+      throw new Error(
+        'Ta automatyzacja zmieniła się na serwerze od czasu wczytania — ktoś ją edytuje ' +
+        'albo zapisała ją druga zakładka. Nic nie zapisałem, żeby nie skasować tamtych zmian.\n' +
+        'Skopiuj swoje opisy, kliknij „Wczytaj ponownie” i wprowadź je jeszcze raz.');
+    }
+
     const log = [];
     const attempt = async (label, method, buildBody) => {
       let res;
@@ -188,8 +201,10 @@
       return ok;
     };
 
-    if (await attempt('PATCH graph', 'PATCH', async () => JSON.stringify({ graph: graphStr })))
+    if (await attempt('PATCH graph', 'PATCH', async () => JSON.stringify({ graph: graphStr }))) {
+      state.original = graphStr;
       return { variant: 'PATCH graph', log };
+    }
 
     // Zapas: pełny PUT. Pobieramy świeży rekord, żeby nie nadpisać cudzych zmian
     // w polach, których nie dotykamy.
@@ -198,7 +213,10 @@
       delete cur.id;
       return JSON.stringify(Object.assign(cur, { graph: graphStr }));
     });
-    if (ok) return { variant: 'PUT pełny rekord', log };
+    if (ok) {
+      state.original = graphStr;
+      return { variant: 'PUT pełny rekord', log };
+    }
 
     const err = new Error('Nie udało się zapisać.\n' + log.join('\n'));
     err.log = log;
@@ -464,7 +482,9 @@
     state.id = null;
     if (!id) { toggle(false); return; }
     prepare(id, true);                                   // pobieramy z wyprzedzeniem
-    if (!panel.classList.contains('ucd-hidden')) show(true);
+    // show(false), nie show(true) — stan jest już wyczyszczony, więc panel
+    // podepnie się pod TO żądanie zamiast wywoływać drugie takie samo
+    if (!panel.classList.contains('ucd-hidden')) show(false);
   }
 
   // SPA zmienia trasę przez history API — podpinamy się pod nie zamiast odpytywać w pętli
@@ -477,6 +497,13 @@
     };
   });
   window.addEventListener('popstate', onRoute);
+
+  // Niezapisane opisy żyją tylko w pamięci karty — ostrzegamy przed ich utratą.
+  window.addEventListener('beforeunload', (e) => {
+    if (!state.dirty.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   buildLauncher();
   buildPanel();

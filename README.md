@@ -24,6 +24,8 @@ przez API. Wtyczka robi z tego zwykły formularz.
 - zapisuje `PATCH`-em wyłącznie pole `graph`, więc **nie rusza** statusu
   włączenia automatyzacji ani jej ustawień czasowych
 - po zapisie **czyta z serwera i sprawdza**, czy zmiana faktycznie weszła
+- przed zapisem porównuje graf z serwerem i **odmawia**, jeśli ktoś zmienił
+  automatyzację od czasu wczytania — zamiast po cichu nadpisać cudzą pracę
 
 Dwa typy bloków są celowo zablokowane, bo ich opis nie jest tym, co widać na
 kanwie: kampanie e-mail (odtwarzają opis z ustawień przy każdym wczytaniu) oraz
