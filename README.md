@@ -92,4 +92,4 @@ sekundzie oczekiwania na API.
 
 ## Licencja
 
-MIT
+MIT — patrz [LICENSE](LICENSE).
