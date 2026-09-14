@@ -4,9 +4,10 @@ Wtyczka do Chrome, która pozwala edytować **opisy bloków** na kanwie automaty
 w user.com / Positive User — te małe podpisy pod tytułem klocka, dzięki którym
 scenariusz da się czytać bez otwierania każdego bloku po kolei.
 
-Kanwa nie ma na to własnego pola. Opis siedzi w grafie automatyzacji, w
-`attrs.description.html` każdej komórki, i normalnie da się go ustawić tylko
-przez API. Wtyczka robi z tego zwykły formularz.
+Kanwa nie ma na to własnego pola. Opis siedzi w grafie automatyzacji i normalnie
+da się go ustawić tylko przez API. Wtyczka robi z tego zwykły formularz.
+
+![przed i po](docs/przed-po.png)
 
 ## Instalacja
 
@@ -51,6 +52,14 @@ jako listę kroków:
 - kliknięcie kroku podświetla go na kanwie
 
 Nagłówek podsumowuje: ile kroków, ile maili, jak długa jest ścieżka.
+
+### Dwa kształty pola opisu
+
+Opis bywa trzymany w jednym z dwóch pól, zależnie od tego, w której wersji
+edytora blok powstał: `attrs.description.html` (nowsze, tekst w kawałku HTML)
+albo `attrs['.desc'].text` (starsze, zwykły string). W badanym workspace **174
+z 231 bloków** miało ten starszy kształt, więc wtyczka obsługuje oba — inaczej
+dla większości scenariuszy panel pokazywałby „brak pola opisu".
 
 Dwa typy bloków są celowo zablokowane, bo ich opis nie jest tym, co widać na
 kanwie: kampanie e-mail (odtwarzają opis z ustawień przy każdym wczytaniu) oraz

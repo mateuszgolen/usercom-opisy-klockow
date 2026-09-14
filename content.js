@@ -63,7 +63,27 @@
 
   /* ---------------- graf ---------------- */
 
-  const descHtml = (cell) => cell.attrs && cell.attrs.description && cell.attrs.description.html;
+  /* Opis bloku bywa trzymany w dwóch różnych polach, zależnie od tego, w której
+   * wersji edytora blok powstał:
+   *   attrs.description.html  — nowsze bloki, tekst siedzi w kawałku HTML
+   *   attrs['.desc'].text     — starsze bloki, zwykły string
+   * W badanym workspace 174 z 231 bloków miało ten starszy kształt, więc
+   * obsługa tylko nowszego oznaczałaby, że dla większości scenariuszy panel
+   * pokazuje „brak pola opisu". */
+  const descKind = (cell) => {
+    const a = cell.attrs;
+    if (!a) return null;
+    if (a.description && typeof a.description.html === 'string') return 'html';
+    if (a['.desc'] && typeof a['.desc'].text === 'string') return 'text';
+    return null;
+  };
+
+  const descSource = (cell) => {
+    const kind = descKind(cell);
+    if (kind === 'html') return cell.attrs.description.html;
+    if (kind === 'text') return cell.attrs['.desc'].text;
+    return null;
+  };
 
   // DOMParser na kilkudziesięciu blokach kosztuje zauważalnie, a ten sam opis
   // czytamy przy każdym przerysowaniu — trzymamy wynik obok źródła, z którego
@@ -71,20 +91,23 @@
   const descCache = new WeakMap();
 
   const readDesc = (cell) => {
-    const html = descHtml(cell);
-    if (!html) return null;
+    const kind = descKind(cell);
+    if (!kind) return null;
+    const src = descSource(cell);
+    if (kind === 'text') return (src || '').replace(/\s+/g, ' ').trim();
     const hit = descCache.get(cell);
-    if (hit && hit.html === html) return hit.text;
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    if (hit && hit.src === src) return hit.text;
+    const doc = new DOMParser().parseFromString(src, 'text/html');
     const text = (doc.body.innerText || '').replace(/\s+/g, ' ').trim();
-    descCache.set(cell, { html: html, text: text });
+    descCache.set(cell, { src: src, text: text });
     return text;
   };
 
   const writeDesc = (cell, text) => {
-    const html = descHtml(cell);
-    if (!html) return false;
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const kind = descKind(cell);
+    if (!kind) return false;
+    if (kind === 'text') { cell.attrs['.desc'].text = text; return true; }
+    const doc = new DOMParser().parseFromString(cell.attrs.description.html, 'text/html');
     const div = doc.body.firstElementChild;
     if (!div) return false;
     div.textContent = text;           // zachowujemy wrapper (style + xmlns), zmieniamy tylko tekst
@@ -593,7 +616,7 @@
       });
       head.append(idx, type, show);
 
-      const hasField = !!descHtml(cell);
+      const hasField = !!descKind(cell);
       const special = SPECIAL[cell.itemType];
 
       if (!hasField) {
