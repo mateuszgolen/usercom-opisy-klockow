@@ -148,3 +148,119 @@
   stroke: #7cd4dd !important;
   stroke-width: 3 !important;
 }
+
+/* ---------------- zakładki ---------------- */
+
+.ucd-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid #24313c;
+}
+.ucd-tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #8494a1;
+  font: 600 11.5px/1 "Inter", system-ui, sans-serif;
+  letter-spacing: .03em;
+  padding: 7px 11px 8px;
+  cursor: pointer;
+}
+.ucd-tab:hover { color: #c3d0da; }
+.ucd-tab-on { color: #7cd4dd; border-bottom-color: #7cd4dd; }
+
+/* w widoku schematu nie ma czego zapisywać */
+.ucd-reading .ucd-warnbar,
+.ucd-reading .ucd-btn-primary { display: none; }
+
+/* ---------------- schemat przebiegu ---------------- */
+
+.ucd-fsection { padding: 10px 14px 14px; }
+.ucd-fsection + .ucd-fsection { border-top: 1px solid #1c2630; }
+
+.ucd-fhead {
+  font: 600 9.5px/1 "Inter", system-ui, sans-serif;
+  letter-spacing: .1em;
+  color: #6f7f8c;
+  margin-bottom: 9px;
+}
+.ucd-forphans .ucd-fhead { color: #e0ac5c; }
+
+.ucd-fnode {
+  border-left: 3px solid #3a4a57;
+  padding: 5px 0 5px 9px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border-radius: 0 3px 3px 0;
+}
+.ucd-fnode:hover { background: #18222b; }
+.ucd-fnode[data-group="trigger"]   { border-left-color: #7cd4dd; }
+.ucd-fnode[data-group="condition"] { border-left-color: #e0ac5c; }
+.ucd-fnode[data-group="action"]    { border-left-color: #78c295; }
+
+.ucd-fline { display: flex; align-items: baseline; gap: 7px; }
+.ucd-fnum {
+  font: 500 10px/1 ui-monospace, monospace;
+  color: #6f7f8c;
+  font-variant-numeric: tabular-nums;
+  min-width: 15px;
+}
+.ucd-ftype { font-weight: 600; font-size: 12px; color: #dce5ec; flex: 1; }
+.ucd-fday {
+  font: 600 9.5px/1 ui-monospace, monospace;
+  color: #0d1117;
+  background: #7cd4dd;
+  padding: 3px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.ucd-fdesc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #90a0ad;
+  margin-top: 2px;
+  padding-left: 22px;
+}
+
+/* rozgałęzienia — wcięcie tylko tam, gdzie ścieżka faktycznie się rozdziela */
+.ucd-fbranches { margin: 2px 0 6px 10px; }
+.ucd-fbranch {
+  border-left: 1px dashed #33434f;
+  padding-left: 11px;
+  margin-top: 7px;
+}
+.ucd-fport {
+  display: inline-block;
+  font: 600 9px/1 "Inter", system-ui, sans-serif;
+  letter-spacing: .08em;
+  color: #78c295;
+  background: #16261f;
+  border: 1px solid #274033;
+  padding: 3px 6px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+}
+.ucd-fport-alt { color: #e0ac5c; background: #2a2214; border-color: #4a3a1c; }
+.ucd-fbin { }
+
+.ucd-fref {
+  font-size: 11px;
+  color: #7cd4dd;
+  padding: 3px 0 3px 12px;
+}
+.ucd-fend {
+  font-size: 10.5px;
+  color: #5d6b77;
+  padding: 1px 0 3px 12px;
+}
+
+.ucd-fskip {
+  font-size: 10.5px;
+  color: #5d6b77;
+  font-style: italic;
+  margin-left: 7px;
+}
+
+/* etykieta portu na głównej ścieżce — bez wcięcia */
+.ucd-fcont { margin: 5px 0 3px; }

@@ -15,7 +15,10 @@ przez API. Wtyczka robi z tego zwykły formularz.
 3. Wejdź na dowolną automatyzację — przycisk „Opisy klocków" pojawi się w prawym
    dolnym rogu. Panel otwiera też ikonka wtyczki na pasku Chrome.
 
-## Co robi
+Panel ma dwie zakładki: **Opisy** (edycja podpisów) i **Schemat** (ten sam
+scenariusz rozwinięty w czytelne drzewo przebiegu).
+
+## Opisy
 
 - listuje bloki **w kolejności jak na kanwie, od lewej** — numeracja w panelu
   odpowiada temu, co widać
@@ -26,6 +29,28 @@ przez API. Wtyczka robi z tego zwykły formularz.
 - po zapisie **czyta z serwera i sprawdza**, czy zmiana faktycznie weszła
 - przed zapisem porównuje graf z serwerem i **odmawia**, jeśli ktoś zmienił
   automatyzację od czasu wczytania — zamiast po cichu nadpisać cudzą pracę
+
+## Schemat
+
+Kanwa rozkłada bloki w przestrzeni, więc przy kilkunastu gałęziach linie plączą
+się i nie widać, co po czym następuje. Zakładka „Schemat" pokazuje ten sam graf
+jako listę kroków:
+
+- prosty ciąg leci płasko, jedna pozycja pod drugą, z numeracją zgodną
+  z kolejnością wykonania
+- wcięcie pojawia się **tylko tam, gdzie ścieżka naprawdę się rozdziela** —
+  jeśli gałęzie schodzą się z powrotem (jak przy bramce cappingu: „wyślij od
+  razu" kontra „poczekaj dzień, potem wyślij"), od punktu zejścia wracamy na
+  główny poziom
+- przy opóźnieniach i wysyłkach widać narastający czas (`D+3`, `D+14`…),
+  liczony ścieżką bez objazdów
+- nawroty pokazują się jako „dalej jak w kroku N" zamiast powielać całe gałęzie
+- bloki, do których nic nie prowadzi, lądują w osobnej sekcji **„nie podłączone
+  — nigdy się nie wykonają"**; na kanwie to jest niewidoczne, a taki blok po
+  prostu milczy
+- kliknięcie kroku podświetla go na kanwie
+
+Nagłówek podsumowuje: ile kroków, ile maili, jak długa jest ścieżka.
 
 Dwa typy bloków są celowo zablokowane, bo ich opis nie jest tym, co widać na
 kanwie: kampanie e-mail (odtwarzają opis z ustawień przy każdym wczytaniu) oraz

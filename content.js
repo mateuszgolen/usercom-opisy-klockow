@@ -59,17 +59,26 @@
     features_html: 'Własny opis (notatka)'
   };
 
-  const state = { id: null, name: '', graph: null, original: null, cells: null, mods: [], dirty: new Set() };
+  const state = { id: null, name: '', graph: null, original: null, cells: null, mods: [], dirty: new Set(), view: 'opisy' };
 
   /* ---------------- graf ---------------- */
 
   const descHtml = (cell) => cell.attrs && cell.attrs.description && cell.attrs.description.html;
 
+  // DOMParser na kilkudziesięciu blokach kosztuje zauważalnie, a ten sam opis
+  // czytamy przy każdym przerysowaniu — trzymamy wynik obok źródła, z którego
+  // powstał, żeby unieważnił się sam po edycji.
+  const descCache = new WeakMap();
+
   const readDesc = (cell) => {
     const html = descHtml(cell);
     if (!html) return null;
+    const hit = descCache.get(cell);
+    if (hit && hit.html === html) return hit.text;
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    return (doc.body.innerText || '').replace(/\s+/g, ' ').trim();
+    const text = (doc.body.innerText || '').replace(/\s+/g, ' ').trim();
+    descCache.set(cell, { html: html, text: text });
+    return text;
   };
 
   const writeDesc = (cell, text) => {
@@ -272,6 +281,302 @@
     return '#' + state.id + ' · ' + state.mods.length + ' bloków · kolejność jak na kanwie, od lewej';
   }
 
+  /* ---------------- schemat przebiegu ----------------
+   *
+   * Kanwa rozkłada bloki w przestrzeni, więc przy kilkunastu gałęziach linie
+   * plączą się i nie widać, co po czym następuje. Tu ten sam graf jest
+   * rozwinięty w drzewo: prosty ciąg leci płasko jedna pozycja pod drugą,
+   * a wcięcie pojawia się dopiero tam, gdzie ścieżka faktycznie się rozdziela.
+   */
+
+  const PORT_PL = {
+    yes: 'TAK', no: 'NIE', a: 'A', b: 'B',
+    'on sent': 'wysłany', 'on open': 'otwarty', 'on click': 'kliknięty',
+    unsubscribe: 'wypisał się', time: 'po czasie'
+  };
+  const portLabel = (p) => (!p || p === 'out' || p === 'in') ? '' : (PORT_PL[p] || p);
+
+  const PORT_ORDER = ['out', 'yes', 'a', 'on sent', 'on open', 'on click', 'time', 'no', 'b', 'unsubscribe'];
+  const portRank = (p) => { const i = PORT_ORDER.indexOf(p); return i < 0 ? 50 : i; };
+
+  function delayDays(cell) {
+    const t = cell.settings && cell.settings.timeout;
+    return typeof t === 'number' && isFinite(t) ? t / 86400 : 0;
+  }
+
+  function dayLabel(days) {
+    if (days <= 0) return 'D+0';
+    if (days < 1) return '+' + Math.round(days * 24) + ' godz.';
+    const d = Math.round(days * 10) / 10;
+    return 'D+' + (Number.isInteger(d) ? d : d.toFixed(1));
+  }
+
+  /* Krótka podpowiedź z ustawień, gdy blok nie ma własnego opisu. */
+  function hint(cell) {
+    const st = cell.settings || {};
+    switch (cell.itemType) {
+      case 'delay': {
+        const days = delayDays(cell);
+        if (!days) return '';
+        return days < 1 ? Math.round(days * 24) + ' godz.' : Math.round(days * 10) / 10 + ' dni';
+      }
+      case 'tags': case 'tags_remove': return st.tags || '';
+      case 'segment': return st.segment ? 'segment #' + st.segment : '';
+      case 'email': return 'kampania niepodpięta';
+      default: return '';
+    }
+  }
+
+  function flowModel() {
+    const mods = state.cells.filter((c) => c.type !== 'link');
+    const byId = new Map(mods.map((c) => [c.id, c]));
+    const edges = new Map();
+    const hasIncoming = new Set();
+    state.cells.filter((c) => c.type === 'link').forEach((l) => {
+      const from = l.source && l.source.id;
+      const to = l.target && l.target.id;
+      if (!from || !to || !byId.has(from) || !byId.has(to)) return;
+      if (!edges.has(from)) edges.set(from, []);
+      edges.get(from).push({ port: (l.source.port || 'out'), to: to });
+      hasIncoming.add(to);
+    });
+    edges.forEach((list) => list.sort((a, b) => portRank(a.port) - portRank(b.port)));
+    return { mods, byId, edges, hasIncoming };
+  }
+
+  function renderFlow() {
+    listEl.textContent = '';
+    if (!state.cells) { renderPlaceholder('Wczytuję…'); return; }
+
+    const { mods, byId, edges, hasIncoming } = flowModel();
+    const stepOf = new Map();
+    let counter = 0;
+    let maxDays = 0;
+
+    const nodeRow = (cell, num, days, showDay) => {
+      const row = el('div', 'ucd-fnode');
+      row.dataset.group = cell.itemGroup || '';
+      const line = el('div', 'ucd-fline');
+      line.append(el('span', 'ucd-fnum', String(num)));
+      line.append(el('span', 'ucd-ftype', TYPE_PL[cell.itemType] || cell.itemType));
+      if (showDay) line.append(el('span', 'ucd-fday', dayLabel(days)));
+      row.append(line);
+      const text = readDesc(cell) || hint(cell);
+      if (text) row.append(el('div', 'ucd-fdesc', text));
+      row.title = 'Pokaż ten blok na kanwie';
+      row.addEventListener('click', () => { highlight(cell.id); });
+      return row;
+    };
+
+    /* Odległości od danego węzła — wszerz, po całym osiągalnym fragmencie. */
+    const distFrom = (startId) => {
+      const dist = new Map([[startId, 0]]);
+      const queue = [startId];
+      while (queue.length) {
+        const id = queue.shift();
+        (edges.get(id) || []).forEach((e) => {
+          if (dist.has(e.to) || !byId.has(e.to)) return;
+          dist.set(e.to, dist.get(id) + 1);
+          queue.push(e.to);
+        });
+      }
+      return dist;
+    };
+
+    /* Punkt, w którym gałęzie znów się schodzą.
+     *
+     * To jest sedno czytelności. Przy bramce cappingu obie odnogi — „wyślij od
+     * razu" i „poczekaj dzień, potem wyślij" — kończą na TYM SAMYM mailu. Bez
+     * tego każda taka bramka spychała resztę scenariusza o wcięcie w prawo.
+     * Wcinamy więc tylko to, co jest naprawdę osobne, a od miejsca zejścia
+     * wracamy na główny poziom. */
+    /* Czy KAŻDA ścieżka wychodząca z tej bramki musi przejść przez `j`.
+     * Sama wspólna osiągalność nie wystarcza: w Torze B wszystkie bramki
+     * „czy już zamówił" prowadzą do jednej, współdzielonej pary bloków
+     * z tagami, więc ta para jest osiągalna zewsząd, a mimo to nie jest
+     * miejscem, w którym gałęzie się schodzą. */
+    const allPathsThrough = (outs, j) => {
+      const seen = new Set();
+      const stack = outs.map((o) => o.to);
+      while (stack.length) {
+        const id = stack.pop();
+        if (id === j || seen.has(id)) continue;
+        seen.add(id);
+        if (stepOf.has(id)) return false;                 // nawrót do już pokazanego kroku
+        const next = edges.get(id) || [];
+        if (!next.length) return false;                   // ścieżka kończy się z pominięciem j
+        next.forEach((e) => stack.push(e.to));
+      }
+      return true;
+    };
+
+    /* Ile NOWYCH kroków przyniesie gałąź; już ponumerowane liczą się jako zero,
+     * bo wyrenderują się jako odnośnik. Używane tylko wtedy, gdy gałęzie się
+     * nie schodzą — wtedy najgrubsza z nich jest główną ścieżką. */
+    const subtreeSize = (startId) => {
+      const seen = new Set();
+      const stack = [startId];
+      let n = 0;
+      while (stack.length) {
+        const id = stack.pop();
+        if (seen.has(id) || stepOf.has(id) || !byId.has(id)) continue;
+        seen.add(id);
+        n += 1;
+        (edges.get(id) || []).forEach((e) => stack.push(e.to));
+      }
+      return n;
+    };
+
+    const joinPoint = (outs) => {
+      const dists = outs.map((o) => distFrom(o.to));
+      const cands = [];
+      dists[0].forEach((_, id) => {
+        if (stepOf.has(id)) return;                       // już pokazany — to nawrót, nie zejście
+        if (!dists.every((d) => d.has(id))) return;
+        cands.push({ id: id, score: Math.max.apply(null, dists.map((d) => d.get(id))) });
+      });
+      cands.sort((a, b) => a.score - b.score);            // najbliższe zejście wygrywa
+      for (const c of cands) if (allPathsThrough(outs, c.id)) return c.id;
+      return null;
+    };
+
+    const walk = (startId, startDays, container, stopAt) => {
+      let cur = startId;
+      let days = startDays;
+      for (;;) {
+        if (stopAt && cur === stopAt) return;              // dalej ciągnie poziom wyżej
+        if (stepOf.has(cur)) {
+          container.append(el('div', 'ucd-fref', '↩ dalej jak w kroku ' + stepOf.get(cur)));
+          return;
+        }
+        const cell = byId.get(cur);
+        if (!cell) return;
+        counter += 1;
+        stepOf.set(cur, counter);
+
+        const isDelay = cell.itemType === 'delay';
+        if (isDelay) days += delayDays(cell);
+        if (days > maxDays) maxDays = days;
+        const sends = cell.itemType === 'email' || cell.itemType === 'sms_campaign';
+        container.append(nodeRow(cell, counter, days, isDelay || sends));
+
+        const outs = edges.get(cur) || [];
+        if (!outs.length) {
+          container.append(el('div', 'ucd-fend', 'koniec ścieżki'));
+          return;
+        }
+        const portChip = (port) =>
+          el('span', 'ucd-fport' + (port === 'no' || port === 'b' ? ' ucd-fport-alt' : ''), portLabel(port) || '→');
+
+        // Jedno wyjście to nie rozgałęzienie, choćby port miał nazwę. Wcinanie
+        // takich kroków spychało cały scenariusz w prawo przy każdej bramce,
+        // której druga odnoga jest niepodłączona.
+        if (outs.length === 1) {
+          const lab = portLabel(outs[0].port);
+          if (lab) {
+            const line = el('div', 'ucd-fcont');
+            line.append(portChip(outs[0].port));
+            container.append(line);
+          }
+          cur = outs[0].to;
+          continue;
+        }
+
+        const join = joinPoint(outs);
+
+        // Gdy gałęzie się nie schodzą (np. bramka „czy już zamówił": jedna
+        // odnoga przerzuca na inny tor i kończy), najgrubsza z nich zostaje
+        // główną ścieżką i idzie płasko, a reszta na bok.
+        let mainAt = -1;
+        if (!join) {
+          const sizes = outs.map((o) => subtreeSize(o.to));
+          mainAt = 0;
+          for (let k = 1; k < outs.length; k += 1) if (sizes[k] > sizes[mainAt]) mainAt = k;
+        }
+
+        const box = el('div', 'ucd-fbranches');
+        outs.forEach((o, k) => {
+          if (k === mainAt) return;
+          const br = el('div', 'ucd-fbranch');
+          br.append(portChip(o.port));
+          if (join && o.to === join) {
+            br.append(el('span', 'ucd-fskip', 'prosto dalej'));
+          } else {
+            const inner = el('div', 'ucd-fbin');
+            walk(o.to, days, inner, join || stopAt);
+            br.append(inner);
+          }
+          box.append(br);
+        });
+        if (box.children.length) container.append(box);
+
+        // Dni liczymy ścieżką bez objazdu — pętelka cappingu ma opóźniać,
+        // a nie przesuwać całego harmonogramu.
+        if (join) { cur = join; continue; }
+
+        const main = outs[mainAt];
+        if (portLabel(main.port)) {
+          const line = el('div', 'ucd-fcont');
+          line.append(portChip(main.port));
+          container.append(line);
+        }
+        cur = main.to;
+        continue;
+      }
+    };
+
+    // Notatki „Własny opis" nie są krokiem scenariusza — wisiały w drzewie jako
+    // osobny START i tylko zaciemniały obraz.
+    const isNote = (m) => m.itemType === 'features_html';
+    const notes = mods.filter(isNote);
+    const steps = mods.filter((m) => !isNote(m));
+
+    const triggers = steps.filter((m) => !hasIncoming.has(m.id) && m.itemGroup === 'trigger');
+    const starts = triggers.length
+      ? triggers
+      : steps.filter((m) => !hasIncoming.has(m.id));
+
+    starts.forEach((t) => {
+      const sec = el('div', 'ucd-fsection');
+      sec.append(el('div', 'ucd-fhead', 'START'));
+      walk(t.id, 0, sec);
+      listEl.append(sec);
+    });
+
+    const orphans = steps.filter((m) => !stepOf.has(m.id));
+    if (orphans.length) {
+      const sec = el('div', 'ucd-fsection ucd-forphans');
+      sec.append(el('div', 'ucd-fhead', 'NIE PODŁĄCZONE — te bloki nigdy się nie wykonają'));
+      orphans.forEach((m) => walk(m.id, 0, sec));
+      listEl.append(sec);
+    }
+
+    if (notes.length) {
+      const sec = el('div', 'ucd-fsection');
+      sec.append(el('div', 'ucd-fhead', 'NOTATKI NA KANWIE — poza przebiegiem'));
+      notes.forEach((m) => {
+        const row = el('div', 'ucd-fnode');
+        row.append(el('div', 'ucd-fdesc', readDesc(m) || '(pusta notatka)'));
+        row.addEventListener('click', () => { highlight(m.id); });
+        sec.append(row);
+      });
+      listEl.append(sec);
+    }
+
+    const mails = steps.filter((m) => m.itemType === 'email').length;
+    const parts = [steps.length + ' kroków'];
+    if (mails) parts.push(mails + (mails === 1 ? ' mail' : ' maili'));
+    if (maxDays > 0) parts.push('ścieżka do ' + dayLabel(maxDays));
+    if (orphans.length) parts.push(orphans.length + ' nie podłączonych');
+    if (notes.length) parts.push(notes.length + (notes.length === 1 ? ' notatka' : ' notatki'));
+    panel.querySelector('.ucd-sub').textContent = '#' + state.id + ' · ' + parts.join(' · ');
+  }
+
+  function renderCurrent() {
+    if (state.view === 'schemat') renderFlow();
+    else { renderList(); panel.querySelector('.ucd-sub').textContent = describeLoaded(); }
+  }
+
   function renderList() {
     listEl.textContent = '';
     state.mods.forEach((cell, i) => {
@@ -331,7 +636,7 @@
     if (cache.data && cache.data.id === id) {                          // gotowe — bez migania
       adopt(cache.data);
       setHeader(state.name, describeLoaded());
-      renderList();
+      renderCurrent();
       markDirty();
       setStatus('');
       return;
@@ -343,7 +648,7 @@
       if (idFromPath() !== data.id) return;                            // trasa zmieniła się w międzyczasie
       adopt(data);
       setHeader(state.name, describeLoaded());
-      renderList();
+      renderCurrent();
       markDirty();
       setStatus('');
     }).catch((e) => {
@@ -367,6 +672,25 @@
     const warn = el('p', 'ucd-warnbar',
       'Zapis nadpisuje graf tej automatyzacji. Zamknij ją w innych zakładkach — kliknięcie tam „Save” cofnęłoby te zmiany.');
 
+    const tabs = el('div', 'ucd-tabs');
+    const mkTab = (key, label, title) => {
+      const b = el('button', 'ucd-tab' + (state.view === key ? ' ucd-tab-on' : ''), label);
+      b.title = title;
+      b.dataset.view = key;
+      b.addEventListener('click', () => {
+        if (state.view === key) return;
+        state.view = key;
+        tabs.querySelectorAll('.ucd-tab').forEach((t) => t.classList.toggle('ucd-tab-on', t.dataset.view === key));
+        panel.classList.toggle('ucd-reading', key === 'schemat');
+        if (state.cells) renderCurrent();
+      });
+      return b;
+    };
+    tabs.append(
+      mkTab('opisy', 'Opisy', 'Edytuj podpisy bloków'),
+      mkTab('schemat', 'Schemat', 'Ten sam scenariusz rozwinięty w drzewo przebiegu')
+    );
+
     listEl = el('div', 'ucd-list');
 
     const foot = el('div', 'ucd-foot');
@@ -377,6 +701,7 @@
       setStatus('Zapisuję…');
       try {
         const out = await save();
+        if (!out) { markDirty(); setStatus('Nie ma czego zapisywać.', 'warn'); return; }
         state.dirty.clear();
         markDirty();
         setStatus('Zapisano i zweryfikowano (' + out.variant + '). Przeładuj stronę, żeby zobaczyć opisy na kanwie.', 'ok');
@@ -412,7 +737,7 @@
     statusEl = el('div', 'ucd-status');
 
     foot.append(saveBtn, reloadBtn, backupBtn, pageBtn);
-    panel.append(hd, warn, listEl, foot, statusEl);
+    panel.append(hd, warn, tabs, listEl, foot, statusEl);
   }
 
   function buildLauncher() {
@@ -479,7 +804,10 @@
     state.dirty.clear();
     state.cells = null;
     state.graph = null;
+    state.original = null;
     state.id = null;
+    markDirty();                                         // bez tego licznik zostawał z poprzedniej automatyzacji
+    setStatus('');
     if (!id) { toggle(false); return; }
     prepare(id, true);                                   // pobieramy z wyprzedzeniem
     // show(false), nie show(true) — stan jest już wyczyszczony, więc panel
